@@ -338,16 +338,7 @@ local FOVSlider = AimTab:CreateSlider({
     end,
 })
 
-local AimOffsetYSlider = AimTab:CreateSlider({
-    Name = "Vertical Offset",
-    Range = {-60, 60},
-    Increment = 1,
-    Suffix = "px",
-    CurrentValue = 0,
-    Callback = function(Value)
-        AimbotSettings.AimOffsetY = Value
-    end,
-})
+-- Vertical Offset slider REMOVED
 
 RunService.RenderStepped:Connect(function()
     if AimbotSettings.FOVCircle and AimbotSettings.FOVCircle.Visible then
@@ -825,7 +816,6 @@ RunService.RenderStepped:Connect(function(dt)
         for _, data in pairs(_G.esp_list) do
             data.box.UIStroke.Color = rainbowColor
         end
-        -- NEW: Update FOV circle color
         if AimbotSettings.FOVCircle then
             AimbotSettings.FOVCircle.Color = rainbowColor
         end

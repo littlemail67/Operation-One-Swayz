@@ -17,8 +17,8 @@ local Window = Rayfield:CreateWindow({
    DisableBuildWarnings = false,
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = nil,
-      FileName = "operation one swayz"
+      FolderName = "OperationOneSwayz",
+      FileName = "config",
    },
 })
 
@@ -95,7 +95,7 @@ game:GetService("RunService"):BindToRenderStep("DynamicZeroRecoil", Enum.RenderP
     end
 end)
 
--- ==================== TABS (Order: Aim → No Recoil → ESP → Chams → Keybinds) ====================
+-- ==================== TABS ====================
 
 -- 1. AIM TAB
 local AimTab = Window:CreateTab("Aim💀", nil)
@@ -338,8 +338,6 @@ local FOVSlider = AimTab:CreateSlider({
     end,
 })
 
--- Vertical Offset slider REMOVED
-
 RunService.RenderStepped:Connect(function()
     if AimbotSettings.FOVCircle and AimbotSettings.FOVCircle.Visible then
         AimbotSettings.FOVCircle.Position = workspace.CurrentCamera.ViewportSize / 2
@@ -404,7 +402,7 @@ local function setupESP()
             Box = newDrawing("Square", {Thickness = 1, Filled = false, Color = _G.ESP_SETTINGS.Color, Visible = false}),
             Tracer = newDrawing("Line", {Thickness = 1, Color = _G.ESP_SETTINGS.Color, Visible = false}),
             Health = newDrawing("Line", {Thickness = 3, Visible = false}),
-            Name = newDrawing("Text", {Size = 13, Center = true, Outline = true, Font = 2, Visible = false}),
+            Name = newDrawing("Text", {Size = 13, Center = true, Outline = false, Color = Color3.fromRGB(255, 255, 255), Visible = false}),
             LastPosition = nil,
             StuckTime = 0
         }
@@ -826,6 +824,9 @@ end)
 local KeybindsTab = Window:CreateTab("Keybinds 🔑", nil)
 KeybindsTab:CreateLabel("🎮 Menu Toggle: K")
 KeybindsTab:CreateLabel("Press K to open/close the UI.")
+KeybindsTab:CreateLabel("")
+KeybindsTab:CreateLabel("💾 Configs are saved automatically.")
+KeybindsTab:CreateLabel("Your settings persist between sessions.")
 
 KeybindsTab:CreateButton({
     Name = "📋 Copy Discord Invite",
@@ -916,5 +917,31 @@ KeybindsTab:CreateButton({
         print("Cheat fully unloaded")
     end
 })
+
+-- ==================== CHANGELOGS TAB ====================
+local ChangelogsTab = Window:CreateTab("📜 Changelogs", nil)
+local ChangelogsSection = ChangelogsTab:CreateSection("Version History")
+
+ChangelogsTab:CreateLabel("📌 Operation One | Swayz 🟣")
+ChangelogsTab:CreateLabel("By Littlemail67")
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.0 – Initial Release",
+    Content = "• ESP (Boxes, Tracers, Health Bars, Names, Distance)\n• No Recoil\n• AimBot (Head/Torso lock, Smoothness, FOV)\n• Rainbow Chams\n• Keybinds (K to toggle)\n• Discord Invite\n• Unload Cheat"
+})
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.3 – Visual Polish",
+    Content = "• ESP Names and Distance text now pure white (no black outline)\n• Added Changelogs tab\n• Cleaned up UI labels"
+})
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.4 – Save/Load Configs",
+    Content = "• Added automatic configuration saving/loading\n• Your settings (ESP, Aim, No Recoil, Colors, etc.) now persist between game sessions\n• Configs are stored locally and loaded on startup"
+})
+
+ChangelogsTab:CreateLabel("")
+ChangelogsTab:CreateLabel("⚡ Made for Operation One")
+ChangelogsTab:CreateLabel("🔧 For Xeno & Delta executors")
 
 print("Operation One | Swayz 🟣 — Loaded")

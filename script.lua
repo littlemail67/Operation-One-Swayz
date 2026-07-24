@@ -53,7 +53,7 @@ local Settings = {
         Health = true,
         Names = true,
         Distance = true,
-        Tracers = true,
+        Tracers = false,
         Color = Color3.fromRGB(255, 0, 0),
     },
     Chams = {
@@ -92,10 +92,10 @@ local function findCharacter(player)
 end
 
 -- ============================================================
--- ESP DRAWING STORAGE (Enhanced with Tracers & Anti-Stuck)
+-- ESP DRAWING STORAGE (with anti-stuck state)
 -- ============================================================
 local ESPObjects = {}
-local MAX_STUCK_TIME = 1.5
+local MAX_STUCK_TIME = 1.5  -- seconds
 
 local function ClearESP()
     for player, data in pairs(ESPObjects) do
@@ -123,24 +123,18 @@ local function hidePlayer(player)
 end
 
 -- ============================================================
--- Helper: World to Screen
+-- Helpers
 -- ============================================================
 local function WorldToScreen(worldPos)
     local vec, onScreen = Camera:WorldToViewportPoint(worldPos)
     return Vector2.new(vec.X, vec.Y), onScreen
 end
 
--- ============================================================
--- Helper: Get Health Color (Gradient)
--- ============================================================
 local function GetHealthColor(health, maxHealth)
     local ratio = math.clamp(health / maxHealth, 0, 1)
     return Color3.fromHSV(0.33 * ratio, 1, 0.95)
 end
 
--- ============================================================
--- Helper: Get Bounding Box (like the working script)
--- ============================================================
 local function getBox(character)
     local cf, size = character:GetBoundingBox()
     local top = cf.Position + Vector3.new(0, size.Y/2, 0)
@@ -154,15 +148,14 @@ local function getBox(character)
     end
 
     local height = math.abs(topPos.Y - bottomPos.Y)
-    local width = height / 2  -- Op1 characters are roughly half as wide as tall
-
+    local width = height / 2
     return Vector2.new(topPos.X - width/2, topPos.Y), width, height
 end
 
 -- ============================================================
--- MAIN UPDATE (Op1-Specific with Anti-Stuck)
+-- MAIN UPDATE (Accepts delta time)
 -- ============================================================
-local function UpdateESP()
+local function UpdateESP(dt)
     if not Settings.ESP.Enabled then
         for _, data in pairs(ESPObjects) do
             for _, obj in pairs(data) do
@@ -181,97 +174,78 @@ local function UpdateESP()
 
     local currentPlayers = {}
 
-    -- Loop through all players (including ourselves? We'll skip)
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
 
         -- Team Check
         if Settings.ESP.TeamCheck then
             if player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
-                -- Hide ESP for this player
-                if ESPObjects[player] then
-                    hidePlayer(player)
-                end
+                if ESPObjects[player] then hidePlayer(player) end
                 continue
             end
         end
 
-        -- Find character via workspace scanning
         local character, humanoid, root = findCharacter(player)
         if not character or not humanoid or humanoid.Health <= 0 then
-            if ESPObjects[player] then
-                hidePlayer(player)
-            end
+            if ESPObjects[player] then hidePlayer(player) end
             continue
         end
 
-        -- Distance check
         local dist = (root.Position - Camera.CFrame.Position).Magnitude
         if dist > Settings.ESP.MaxDistance then
-            if ESPObjects[player] then
-                hidePlayer(player)
-            end
+            if ESPObjects[player] then hidePlayer(player) end
             continue
         end
 
-        -- Mark as active
         currentPlayers[player] = true
 
         -- Create objects if missing
         if not ESPObjects[player] then
             ESPObjects[player] = {
                 Box = Drawing.new("Square"),
-                Health = Drawing.new("Square"),      -- Using Square for health bar (thicker)
-                HealthBg = Drawing.new("Square"),    -- Background for health
+                Health = Drawing.new("Square"),
+                HealthBg = Drawing.new("Square"),
                 Name = Drawing.new("Text"),
                 Tracer = Drawing.new("Line"),
                 Dist = Drawing.new("Text"),
                 LastPosition = nil,
                 StuckTime = 0,
             }
-            -- Box setup
+            -- Setup...
             ESPObjects[player].Box.Thickness = 1.5
             ESPObjects[player].Box.Filled = false
-            -- Health background
             ESPObjects[player].HealthBg.Thickness = 0
             ESPObjects[player].HealthBg.Filled = true
             ESPObjects[player].HealthBg.Transparency = 0.5
-            ESPObjects[player].HealthBg.Color = Color3.fromRGB(0, 0, 0)
-            -- Health fill
+            ESPObjects[player].HealthBg.Color = Color3.fromRGB(0,0,0)
             ESPObjects[player].Health.Thickness = 0
             ESPObjects[player].Health.Filled = true
             ESPObjects[player].Health.Transparency = 0
-            -- Name
             ESPObjects[player].Name.Size = 13
             ESPObjects[player].Name.Center = true
             ESPObjects[player].Name.Outline = true
-            ESPObjects[player].Name.OutlineColor = Color3.fromRGB(0, 0, 0)
-            -- Tracer
+            ESPObjects[player].Name.OutlineColor = Color3.fromRGB(0,0,0)
             ESPObjects[player].Tracer.Thickness = 1
-            -- Dist
             ESPObjects[player].Dist.Size = 12
             ESPObjects[player].Dist.Center = true
             ESPObjects[player].Dist.Outline = true
-            ESPObjects[player].Dist.OutlineColor = Color3.fromRGB(0, 0, 0)
+            ESPObjects[player].Dist.OutlineColor = Color3.fromRGB(0,0,0)
         end
 
         local data = ESPObjects[player]
-
-        -- Get bounding box
         local pos, width, height = getBox(character)
         if not pos then
             hidePlayer(player)
             continue
         end
 
-        -- Anti-Stuck (from the working script)
+        -- Anti-stuck using dt
         if data.LastPosition then
             if (data.LastPosition - pos).Magnitude < 1 then
-                data.StuckTime = data.StuckTime + (RunService:GetLastFps() and 1/60 or 0.016)
+                data.StuckTime = data.StuckTime + dt
             else
                 data.StuckTime = 0
             end
-
             if data.StuckTime >= MAX_STUCK_TIME then
                 hidePlayer(player)
                 data.LastPosition = nil
@@ -279,14 +253,12 @@ local function UpdateESP()
                 continue
             end
         end
-
         data.LastPosition = pos
 
-        -- Health color
         local healthColor = GetHealthColor(humanoid.Health, humanoid.MaxHealth)
         local boxColor = currentColor
 
-        -- ── BOX ──
+        -- Box
         if Settings.ESP.Boxes then
             data.Box.Size = Vector2.new(width, height)
             data.Box.Position = pos
@@ -297,26 +269,19 @@ local function UpdateESP()
             data.Box.Visible = false
         end
 
-        -- ── HEALTH BAR ──
+        -- Health bar
         if Settings.ESP.Health then
             local barWidth = 6
             local barHeight = height * math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
             local barX = pos.X - barWidth - 5
             local barY = pos.Y + height - barHeight
 
-            -- Background
             data.HealthBg.Size = Vector2.new(barWidth, height)
             data.HealthBg.Position = Vector2.new(barX, pos.Y)
-            data.HealthBg.Transparency = 0.5
-            data.HealthBg.Filled = true
-            data.HealthBg.Color = Color3.fromRGB(0, 0, 0)
             data.HealthBg.Visible = true
 
-            -- Fill
             data.Health.Size = Vector2.new(barWidth, math.max(barHeight, 1))
             data.Health.Position = Vector2.new(barX, barY)
-            data.Health.Transparency = 0
-            data.Health.Filled = true
             data.Health.Color = healthColor
             data.Health.Visible = true
         else
@@ -324,27 +289,27 @@ local function UpdateESP()
             data.HealthBg.Visible = false
         end
 
-        -- ── NAME ──
+        -- Name
         if Settings.ESP.Names then
             data.Name.Text = player.Name
             data.Name.Position = Vector2.new(pos.X + width/2, pos.Y - 16)
-            data.Name.Color = Color3.fromRGB(255, 255, 255)
+            data.Name.Color = Color3.fromRGB(255,255,255)
             data.Name.Visible = true
         else
             data.Name.Visible = false
         end
 
-        -- ── DISTANCE ──
+        -- Distance
         if Settings.ESP.Distance then
             data.Dist.Text = string.format("%dm", math.floor(dist))
             data.Dist.Position = Vector2.new(pos.X + width/2, pos.Y + height + 2)
-            data.Dist.Color = Color3.fromRGB(200, 200, 200)
+            data.Dist.Color = Color3.fromRGB(200,200,200)
             data.Dist.Visible = true
         else
             data.Dist.Visible = false
         end
 
-        -- ── TRACER ──
+        -- Tracer
         if Settings.ESP.Tracers then
             data.Tracer.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
             data.Tracer.To = Vector2.new(pos.X + width/2, pos.Y + height/2)
@@ -355,18 +320,16 @@ local function UpdateESP()
         end
     end
 
-    -- Cleanup players that are no longer active
+    -- Cleanup players no longer in currentPlayers
     for player, data in pairs(ESPObjects) do
         if not currentPlayers[player] then
             hidePlayer(player)
-            -- Optionally remove from table to free memory, but keep for next time
-            -- We'll keep it but hide everything
         end
     end
 end
 
 -- ============================================================
--- 🔥 AGGRESSIVE NO RECOIL (Multiple Layers)
+-- NO RECOIL – 3 LAYERS (Tween + CFrame hook + RenderStep)
 -- ============================================================
 local recoilConnection = nil
 local oldTweenCreate = nil
@@ -376,7 +339,7 @@ local storedCFrame = nil
 local function EnableNoRecoil()
     if recoilConnection then return end
 
-    -- Layer 1: Hook TweenService (if they use tweens)
+    -- Layer 1: Tween hook
     if TweenService then
         oldTweenCreate = hookfunction(TweenService.Create, function(self, obj, info, props)
             if obj == Camera and props and props.CFrame then
@@ -394,57 +357,30 @@ local function EnableNoRecoil()
         end)
     end
 
-    -- Layer 2: Hook Camera's CFrame metatable (to intercept direct changes)
+    -- Layer 2: CFrame metatable hook
     local mt = getrawmetatable(Camera)
     if mt then
         originalCameraMT = mt
-        local oldIndex = mt.__index
         local oldNewIndex = mt.__newindex
         setreadonly(mt, false)
-
-        mt.__index = function(self, key)
-            if key == "CFrame" and self == Camera then
-                -- Return the stored CFrame (our aim) if we have one, else default
-                return storedCFrame or oldIndex(self, key)
-            end
-            return oldIndex(self, key)
-        end
-
         mt.__newindex = function(self, key, value)
-            if key == "CFrame" and self == Camera then
-                -- Allow changes only if NoRecoil is disabled, or we allow slight changes
-                if Settings.NoRecoil.Enabled then
-                    -- Block the change: do not update CFrame
-                    return
-                else
-                    -- Allow change
-                    rawset(self, key, value)
-                end
-            else
-                rawset(self, key, value)
+            if key == "CFrame" and self == Camera and Settings.NoRecoil.Enabled then
+                -- Block recoil writes
+                return
             end
+            oldNewIndex(self, key, value)
         end
-
         setreadonly(mt, true)
     end
 
-    -- Layer 3: RenderStepped correction (to catch any residual recoil)
+    -- Layer 3: RenderStepped correction
+    storedCFrame = Camera.CFrame
     recoilConnection = RunService.RenderStepped:Connect(function()
         if not Settings.NoRecoil.Enabled then return end
-
-        -- If we have a stored aim, keep the camera locked to it
         if storedCFrame then
             Camera.CFrame = storedCFrame
         end
-
-        -- Also, capture user input to update the stored aim (so you can still look around)
-        -- This is tricky: we need to separate mouse movement from recoil.
-        -- The simple solution: store the CFrame before recoil is applied.
-        -- Since we blocked CFrame writes in the metatable, this is fine.
     end)
-
-    -- Store current CFrame as the base aim
-    storedCFrame = Camera.CFrame
 end
 
 local function DisableNoRecoil()
@@ -452,19 +388,17 @@ local function DisableNoRecoil()
         recoilConnection:Disconnect()
         recoilConnection = nil
     end
-    -- Restore metatable
     if originalCameraMT then
         local mt = getrawmetatable(Camera)
         if mt then
             setreadonly(mt, false)
-            mt.__index = originalCameraMT.__index
             mt.__newindex = originalCameraMT.__newindex
             setreadonly(mt, true)
         end
         originalCameraMT = nil
     end
     storedCFrame = nil
-    -- Restore TweenService (optional)
+    -- Restore Tween hook if needed
 end
 
 -- ============================================================
@@ -480,7 +414,7 @@ ESPTab:CreateToggle({
 })
 
 ESPTab:CreateToggle({
-    Name = "Team Check (Ignore Teammates)",
+    Name = "Team Check",
     CurrentValue = Settings.ESP.TeamCheck,
     Flag = "ESPTeamCheck",
     Callback = function(value) Settings.ESP.TeamCheck = value end,
@@ -497,7 +431,7 @@ ESPTab:CreateSlider({
 })
 
 ESPTab:CreateColorPicker({
-    Name = "ESP Color (when Rainbow off)",
+    Name = "ESP Color",
     Color = Settings.ESP.Color,
     Flag = "ESPColor",
     Callback = function(value) Settings.ESP.Color = value end,
@@ -532,8 +466,8 @@ ESPTab:CreateToggle({
 })
 
 ESPTab:CreateToggle({
-    Name = "Tracers (Bottom to Player)",
-    CurrentValue = Settings.ESP.Tracers or false,
+    Name = "Tracers",
+    CurrentValue = Settings.ESP.Tracers,
     Flag = "ESPTracers",
     Callback = function(value) Settings.ESP.Tracers = value end,
 })
@@ -546,21 +480,12 @@ RecoilTab:CreateToggle({
     Flag = "NoRecoilToggle",
     Callback = function(value)
         Settings.NoRecoil.Enabled = value
-        if value then 
-            EnableNoRecoil() 
-            Rayfield:Notify({
-                Title = "No Recoil",
-                Content = "Aggressive recoil cancellation active.",
-                Duration = 2
-            })
-        else 
-            DisableNoRecoil() 
-        end
+        if value then EnableNoRecoil() else DisableNoRecoil() end
     end,
 })
 
 RecoilTab:CreateSlider({
-    Name = "Recoil Reduction Intensity",
+    Name = "Recoil Intensity",
     Range = {0, 100},
     Increment = 5,
     Suffix = "%",
@@ -575,51 +500,33 @@ RecoilTab:CreateSlider({
     end,
 })
 
-RecoilTab:CreateLabel("0% = Full removal (laser)")
-RecoilTab:CreateLabel("100% = Default recoil")
-RecoilTab:CreateLabel("")
-RecoilTab:CreateLabel("🔒 3 Layers: Tween Hook + CFrame Hook + RenderStep")
-RecoilTab:CreateLabel("Works even if Op1 uses custom recoil.")
+RecoilTab:CreateLabel("0% = Full removal")
+RecoilTab:CreateLabel("100% = Default")
+RecoilTab:CreateLabel("3‑Layer protection")
 
 local KeybindsTab = Window:CreateTab("Keybinds 🔑", nil)
-
-KeybindsTab:CreateLabel("🎮 Menu Toggle: K")
-KeybindsTab:CreateLabel("Press K to open/close the UI.")
-
+KeybindsTab:CreateLabel("Menu Toggle: K")
 KeybindsTab:CreateButton({
-    Name = "📋 Copy Discord Invite",
+    Name = "Copy Discord Invite",
     Callback = function()
         local link = "https://discord.gg/3Xg9enfae"
         local copied = false
         pcall(function()
-            if syn and syn.clipboard then
-                syn.clipboard(link)
-                copied = true
-            elseif setclipboard then
-                setclipboard(link)
-                copied = true
-            elseif toclipboard then
-                toclipboard(link)
-                copied = true
-            end
+            if syn and syn.clipboard then syn.clipboard(link) copied = true
+            elseif setclipboard then setclipboard(link) copied = true
+            elseif toclipboard then toclipboard(link) copied = true end
         end)
-        if copied then
-            Rayfield:Notify({ Title = "Discord Invite", Content = "Link copied to clipboard!", Duration = 3 })
-        else
-            Rayfield:Notify({ Title = "Discord Invite", Content = "Couldn't copy. Here's the link: " .. link, Duration = 5 })
-        end
+        Rayfield:Notify({ Title = "Invite", Content = copied and "Copied!" or link, Duration = 3 })
     end
 })
 
 local ChamsTab = Window:CreateTab("Chams 🌈", nil)
-
 ChamsTab:CreateToggle({
     Name = "Rainbow Boxes",
     CurrentValue = Settings.Chams.Rainbow,
     Flag = "RainbowToggle",
     Callback = function(value) Settings.Chams.Rainbow = value end,
 })
-
 ChamsTab:CreateSlider({
     Name = "Rainbow Speed",
     Range = {0.1, 5},
@@ -631,27 +538,15 @@ ChamsTab:CreateSlider({
 })
 
 -- ============================================================
--- RENDER LOOP
+-- RENDER LOOP (pass dt)
 -- ============================================================
-RunService.RenderStepped:Connect(function()
-    UpdateESP()
+RunService.RenderStepped:Connect(function(dt)
+    UpdateESP(dt)
 end)
 
 -- ============================================================
 -- CLEANUP
 -- ============================================================
-Players.PlayerRemoving:Connect(function(player)
-    if ESPObjects[player] then
-        for _, obj in pairs(ESPObjects[player]) do
-            if obj and obj.Visible ~= nil then
-                obj.Visible = false
-            end
-        end
-        ESPObjects[player] = nil
-    end
-end)
-
--- Also clean up when player leaves
 Players.PlayerRemoving:Connect(function(player)
     if ESPObjects[player] then
         hidePlayer(player)
@@ -660,14 +555,12 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 -- ============================================================
--- LOAD & NOTIFY
+-- LOAD
 -- ============================================================
 Rayfield:LoadConfiguration()
-
 Rayfield:Notify({
-    Title = "Operation One | Swayz 🟣",
-    Content = "Op1-Specific Loaded | 3-Layer No Recoil",
+    Title = "Op1 | Swayz 🟣",
+    Content = "Loaded | No errors | Press K",
     Duration = 4,
 })
-
-print("Operation One | Swayz 🟣 — Op1-Specific (Merged with Working ESP Logic)")
+print("Operation One | Swayz 🟣 — Fixed script loaded.")

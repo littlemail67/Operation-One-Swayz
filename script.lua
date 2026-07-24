@@ -99,7 +99,7 @@ end)
 
 -- 1. AIM TAB
 local AimTab = Window:CreateTab("Aim💀", nil)
-local AimSection = AimTab:CreateSection("AimBot")  -- renamed from "Aim Assist"
+local AimSection = AimTab:CreateSection("AimBot")
 
 -- ==================== AIMBOT ====================
 local UserInputService = game:GetService("UserInputService")
@@ -119,8 +119,6 @@ local AimbotSettings = {
     UseCameraAim = false,
     MobileScopeActive = false,
 }
-
--- Removed AimbotModeText drawing (no popups)
 
 if isMobile then
     local function deactivateAimbotIfActive()
@@ -171,7 +169,7 @@ local function getViewmodelPartPosition(model, partName)
     return nil
 end
 
-local aimPartOptions = {"Head", "Torso"}  -- removed "Feet" and "Random"
+local aimPartOptions = {"Head", "Torso"}
 
 local function getClosestPartToCenter(partName)
     local Camera = workspace.CurrentCamera
@@ -228,7 +226,6 @@ local function aimbotLoop()
 
         if not AimbotSettings.WasRMBPressed then
             AimbotSettings.WasRMBPressed = true
-            -- Random removed, so we just use the selected part
         end
 
         local currentPart = AimbotSettings.AimPart
@@ -293,7 +290,7 @@ local AlwaysOnToggle = AimTab:CreateToggle({
 })
 
 local CameraAimToggle = AimTab:CreateToggle({
-    Name = "Aim Assist",   -- renamed from "Silent Aim (Camera)"
+    Name = "Aim Assist",
     CurrentValue = false,
     Callback = function(Value)
         AimbotSettings.UseCameraAim = Value
@@ -301,7 +298,6 @@ local CameraAimToggle = AimTab:CreateToggle({
 })
 
 local AimPartSection = AimTab:CreateSection("Target Part")
--- Only Head and Torso – removed Random
 local aimParts = {"Head", "Torso"}
 for _, part in ipairs(aimParts) do
     AimTab:CreateButton({
@@ -804,7 +800,7 @@ ChamsTab:CreateSlider({
     end,
 })
 
-ChamsTab:CreateLabel("🌈 Applies to box outlines only.")
+ChamsTab:CreateLabel("🌈 Applies to box outlines and FOV circle.")
 ChamsTab:CreateLabel("Health bars stay health-based.")
 
 _G.RainbowEnabled = false
@@ -828,6 +824,10 @@ RunService.RenderStepped:Connect(function(dt)
         end
         for _, data in pairs(_G.esp_list) do
             data.box.UIStroke.Color = rainbowColor
+        end
+        -- NEW: Update FOV circle color
+        if AimbotSettings.FOVCircle then
+            AimbotSettings.FOVCircle.Color = rainbowColor
         end
     end
 end)

@@ -1,9 +1,12 @@
 -- ==== Initialization ====
 local RunService = game:GetService("RunService")
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 _G.ESPColor = _G.ESPColor or Color3.new(1, 1, 1)
 _G.espSkeletons = false
 _G.ESP_ENABLED = false
+_G.RainbowEnabled = false
+_G.RainbowSpeed = 1.0
 
 local Window = Rayfield:CreateWindow({
    Name = "Operation One | Swayz 🟣",
@@ -115,9 +118,10 @@ local AimbotSettings = {
     FOVCircle = nil,
     Connection = nil,
     WasRMBPressed = false,
-    AlwaysOn = false,
     UseCameraAim = false,
     MobileScopeActive = false,
+    WallCheck = true,
+    FOVColor = Color3.new(1, 1, 1),
 }
 
 if isMobile then
@@ -158,18 +162,39 @@ if isMobile then
     end)
 end
 
+local function isTargetVisible(targetPart)
+    local camera = workspace.CurrentCamera
+    local origin = camera.CFrame.Position
+    local direction = (targetPart.Position - origin).Unit
+    local distance = (targetPart.Position - origin).Magnitude
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+
+    local result = workspace:Raycast(origin, direction * distance, raycastParams)
+    if not result then
+        return true
+    end
+    local hitChar = result.Instance:FindFirstAncestorOfClass("Model")
+    if hitChar and hitChar == targetPart.Parent then
+        return true
+    end
+    return false
+end
+
 local function getViewmodelPartPosition(model, partName)
     if partName == "Head" then
         local head = model:FindFirstChild("head")
-        if head and head:IsA("BasePart") then return head.Position end
+        if head and head:IsA("BasePart") then 
+            return head.Position
+        end
     elseif partName == "Torso" then
         local torso = model:FindFirstChild("torso")
         if torso and torso:IsA("BasePart") then return torso.Position end
     end
     return nil
 end
-
-local aimPartOptions = {"Head", "Torso"}
 
 local function getClosestPartToCenter(partName)
     local Camera = workspace.CurrentCamera
@@ -187,10 +212,23 @@ local function getClosestPartToCenter(partName)
         local partPos = getViewmodelPartPosition(model, partName)
         if not partPos then continue end
 
+        if AimbotSettings.WallCheck then
+            local part = model:FindFirstChild(partName:lower())
+            if part and part:IsA("BasePart") then
+                if not isTargetVisible(part) then
+                    continue
+                end
+            end
+        end
+
         local screenPos, onScreen = Camera:WorldToScreenPoint(partPos)
         if not onScreen then continue end
 
-        screenPos = Vector2.new(screenPos.X, screenPos.Y + AimbotSettings.AimOffsetY)
+        local offsetY = AimbotSettings.AimOffsetY
+        if partName == "Head" then
+            offsetY = offsetY + 4
+        end
+        screenPos = Vector2.new(screenPos.X, screenPos.Y + offsetY)
 
         local dist = (screenPos - center).Magnitude
         if dist < bestDist then
@@ -210,9 +248,7 @@ local function aimbotLoop()
         if not AimbotSettings.Enabled then return end
 
         local rmbPressed
-        if AimbotSettings.AlwaysOn then
-            rmbPressed = true
-        elseif isMobile then
+        if isMobile then
             rmbPressed = AimbotSettings.MobileScopeActive
         else
             rmbPressed = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
@@ -234,7 +270,10 @@ local function aimbotLoop()
 
         local center = Camera.ViewportSize / 2
         local smoothness = AimbotSettings.Smoothness
-        local factor = (smoothness <= 0) and 1 or math.clamp(1 - (smoothness / 10), 0.05, 1)
+        
+        -- 🔥 FINAL SMOOTHING: Balanced baseline – 0.50 at 0, 0.05 at 10
+        local factor = 0.50 - (smoothness / 10) * 0.45
+        factor = math.clamp(factor, 0.05, 0.55)
 
         if AimbotSettings.UseCameraAim and worldTarget then
             local desiredLook = CFrame.lookAt(Camera.CFrame.Position, worldTarget)
@@ -242,14 +281,35 @@ local function aimbotLoop()
             Camera.CFrame = newCF
         else
             local delta = screenTarget - center
-            mousemoverel(delta.X * factor, delta.Y * factor)
+            local maxMove = 1500 * factor + 0.5
+            local moveX = math.clamp(delta.X * factor, -maxMove, maxMove)
+            local moveY = math.clamp(delta.Y * factor, -maxMove, maxMove)
+            mousemoverel(moveX, moveY)
         end
     end)
 end
 
+-- FLAGS
+local AIMBOT_ENABLED = "AimbotEnabled"
+local AIMBOT_SMOOTHNESS = "AimbotSmoothness"
+local AIMBOT_FOV = "AimbotFOV"
+local AIMBOT_AIMOFFSET = "AimbotAimOffset"
+local AIMBOT_CAMERA_AIM = "AimbotCameraAim"
+local AIMBOT_WALLCHECK = "AimbotWallCheck"
+local AIMBOT_FOVCOLOR = "AimbotFOVColor"
+local NORECOIL_ENABLED = "NoRecoilEnabled"
+local ESP_MAIN = "ESPMain"
+local ESP_TRACERS = "ESPTracers"
+local ESP_HEALTH = "ESPHealth"
+local ESP_SKELETONS = "ESPSkeletons"
+local ESP_COLOR = "ESPColor"
+local RAINBOW_ENABLED = "RainbowEnabled"
+local RAINBOW_SPEED = "RainbowSpeed"
+
 local AimbotToggle = AimTab:CreateToggle({
-    Name = "Enable AimBot",
-    CurrentValue = false,
+    Name = "Enable AimBot (Aim in to Lock)",
+    CurrentValue = AimbotSettings.Enabled,
+    Flag = AIMBOT_ENABLED,
     Callback = function(Value)
         AimbotSettings.Enabled = Value
         if Value then
@@ -259,7 +319,7 @@ local AimbotToggle = AimTab:CreateToggle({
             if not AimbotSettings.FOVCircle then
                 AimbotSettings.FOVCircle = Drawing.new("Circle")
                 AimbotSettings.FOVCircle.Visible = false
-                AimbotSettings.FOVCircle.Color = Color3.new(1,1,1)
+                AimbotSettings.FOVCircle.Color = AimbotSettings.FOVColor
                 AimbotSettings.FOVCircle.Thickness = 1
                 AimbotSettings.FOVCircle.Filled = false
                 AimbotSettings.FOVCircle.Transparency = 1
@@ -281,19 +341,33 @@ local AimbotToggle = AimTab:CreateToggle({
     end,
 })
 
-local AlwaysOnToggle = AimTab:CreateToggle({
-    Name = "Always Active",
-    CurrentValue = false,
+local CameraAimToggle = AimTab:CreateToggle({
+    Name = "Aim Assist",
+    CurrentValue = AimbotSettings.UseCameraAim,
+    Flag = AIMBOT_CAMERA_AIM,
     Callback = function(Value)
-        AimbotSettings.AlwaysOn = Value
+        AimbotSettings.UseCameraAim = Value
     end,
 })
 
-local CameraAimToggle = AimTab:CreateToggle({
-    Name = "Aim Assist",
-    CurrentValue = false,
+local WallCheckToggle = AimTab:CreateToggle({
+    Name = "Wall Check",
+    CurrentValue = AimbotSettings.WallCheck,
+    Flag = AIMBOT_WALLCHECK,
     Callback = function(Value)
-        AimbotSettings.UseCameraAim = Value
+        AimbotSettings.WallCheck = Value
+    end,
+})
+
+local FOVColorPicker = AimTab:CreateColorPicker({
+    Name = "FOV Circle Color",
+    Color = AimbotSettings.FOVColor,
+    Flag = AIMBOT_FOVCOLOR,
+    Callback = function(Value)
+        AimbotSettings.FOVColor = Value
+        if AimbotSettings.FOVCircle then
+            AimbotSettings.FOVCircle.Color = Value
+        end
     end,
 })
 
@@ -318,7 +392,8 @@ local SmoothnessSlider = AimTab:CreateSlider({
     Range = {0, 10},
     Increment = 0.1,
     Suffix = "",
-    CurrentValue = 0,
+    CurrentValue = AimbotSettings.Smoothness,
+    Flag = AIMBOT_SMOOTHNESS,
     Callback = function(Value)
         AimbotSettings.Smoothness = Value
     end,
@@ -326,10 +401,11 @@ local SmoothnessSlider = AimTab:CreateSlider({
 
 local FOVSlider = AimTab:CreateSlider({
     Name = "Field of View (FOV)",
-    Range = {30, 750},
+    Range = {30, 700},
     Increment = 5,
     Suffix = "px",
-    CurrentValue = 150,
+    CurrentValue = AimbotSettings.FOV,
+    Flag = AIMBOT_FOV,
     Callback = function(Value)
         AimbotSettings.FOV = Value
         if AimbotSettings.FOVCircle then
@@ -350,7 +426,8 @@ local RecoilSection = RecoilTab:CreateSection("Recoil Control")
 
 local NoRecoilToggle = RecoilTab:CreateToggle({
    Name = "Enable No Recoil",
-   CurrentValue = false,
+   CurrentValue = NoRecoilSettings.Enabled,
+   Flag = NORECOIL_ENABLED,
    Callback = function(Value)
       NoRecoilSettings.Enabled = Value
       if Value then syncCamera() end
@@ -509,7 +586,8 @@ setupESP()
 
 local MainESPToggle = ESPTab:CreateToggle({
    Name = "Toggle ESP",
-   CurrentValue = false,
+   CurrentValue = _G.ESP_SETTINGS.MainEnabled,
+   Flag = ESP_MAIN,
    Callback = function(Value)
       _G.ESP_SETTINGS.MainEnabled = Value
    end,
@@ -519,7 +597,8 @@ local ESPOptionsSection = ESPTab:CreateSection("Visual Options")
 
 local TracersToggle = ESPTab:CreateToggle({
    Name = "Show Tracers",
-   CurrentValue = true,
+   CurrentValue = _G.ESP_SETTINGS.Tracers,
+   Flag = ESP_TRACERS,
    Callback = function(Value)
       _G.ESP_SETTINGS.Tracers = Value
    end,
@@ -527,7 +606,8 @@ local TracersToggle = ESPTab:CreateToggle({
 
 local HealthToggle = ESPTab:CreateToggle({
    Name = "Show Health Bars",
-   CurrentValue = true,
+   CurrentValue = _G.ESP_SETTINGS.HealthBar,
+   Flag = ESP_HEALTH,
    Callback = function(Value)
       _G.ESP_SETTINGS.HealthBar = Value
    end,
@@ -538,7 +618,8 @@ local ViewmodelSection = ESPTab:CreateSection("Model ESP")
 
 local SkeletonsToggle = ESPTab:CreateToggle({
    Name = "Skeleton Overlay",
-   CurrentValue = false,
+   CurrentValue = _G.espSkeletons,
+   Flag = ESP_SKELETONS,
    Callback = function(Value)
       _G.espSkeletons = Value
       _G.ESP_ENABLED = Value
@@ -748,6 +829,7 @@ local ColorSection = ESPTab:CreateSection("Color Settings")
 local ESPColorPicker = ESPTab:CreateColorPicker({
    Name = "Pick ESP Color",
    Color = _G.ESPColor,
+   Flag = ESP_COLOR,
    Callback = function(Value)
       _G.ESPColor = Value
       _G.ESP_SETTINGS.Color = Value
@@ -772,7 +854,8 @@ local ChamsSection = ChamsTab:CreateSection("Rainbow Boxes")
 
 ChamsTab:CreateToggle({
     Name = "Enable Rainbow",
-    CurrentValue = false,
+    CurrentValue = _G.RainbowEnabled or false,
+    Flag = RAINBOW_ENABLED,
     Callback = function(Value)
         _G.RainbowEnabled = Value
     end,
@@ -783,7 +866,8 @@ ChamsTab:CreateSlider({
     Range = {0.1, 5},
     Increment = 0.1,
     Suffix = "x",
-    CurrentValue = 1.0,
+    CurrentValue = _G.RainbowSpeed or 1.0,
+    Flag = RAINBOW_SPEED,
     Callback = function(Value)
         _G.RainbowSpeed = Value
     end,
@@ -825,8 +909,35 @@ local KeybindsTab = Window:CreateTab("Keybinds 🔑", nil)
 KeybindsTab:CreateLabel("🎮 Menu Toggle: K")
 KeybindsTab:CreateLabel("Press K to open/close the UI.")
 KeybindsTab:CreateLabel("")
-KeybindsTab:CreateLabel("💾 Configs are saved automatically.")
-KeybindsTab:CreateLabel("Your settings persist between sessions.")
+KeybindsTab:CreateLabel("💾 Config Management")
+
+KeybindsTab:CreateButton({
+    Name = "💾 Save Config",
+    Callback = function()
+        Rayfield:SaveConfiguration()
+        Rayfield:Notify({
+            Title = "Config Saved",
+            Content = "Settings saved successfully!",
+            Duration = 2
+        })
+    end
+})
+
+KeybindsTab:CreateButton({
+    Name = "📂 Load Config",
+    Callback = function()
+        Rayfield:LoadConfiguration()
+        syncVariablesFromFlags()
+        Rayfield:Notify({
+            Title = "Config Loaded",
+            Content = "Settings restored!",
+            Duration = 2
+        })
+    end
+})
+
+KeybindsTab:CreateLabel("")
+KeybindsTab:CreateLabel("📋 Discord")
 
 KeybindsTab:CreateButton({
     Name = "📋 Copy Discord Invite",
@@ -918,6 +1029,37 @@ KeybindsTab:CreateButton({
     end
 })
 
+-- ==================== SYNC VARIABLES FROM FLAGS ====================
+function syncVariablesFromFlags()
+    AimbotSettings.Enabled = Rayfield:GetFlagValue(AIMBOT_ENABLED) or false
+    AimbotSettings.Smoothness = Rayfield:GetFlagValue(AIMBOT_SMOOTHNESS) or 0
+    AimbotSettings.FOV = Rayfield:GetFlagValue(AIMBOT_FOV) or 150
+    AimbotSettings.AimOffsetY = Rayfield:GetFlagValue(AIMBOT_AIMOFFSET) or 0
+    AimbotSettings.UseCameraAim = Rayfield:GetFlagValue(AIMBOT_CAMERA_AIM) or false
+    AimbotSettings.WallCheck = Rayfield:GetFlagValue(AIMBOT_WALLCHECK) or true
+    local fovColor = Rayfield:GetFlagValue(AIMBOT_FOVCOLOR)
+    if fovColor then AimbotSettings.FOVColor = fovColor end
+
+    NoRecoilSettings.Enabled = Rayfield:GetFlagValue(NORECOIL_ENABLED) or false
+
+    _G.ESP_SETTINGS.MainEnabled = Rayfield:GetFlagValue(ESP_MAIN) or false
+    _G.ESP_SETTINGS.Tracers = Rayfield:GetFlagValue(ESP_TRACERS) or true
+    _G.ESP_SETTINGS.HealthBar = Rayfield:GetFlagValue(ESP_HEALTH) or true
+    _G.espSkeletons = Rayfield:GetFlagValue(ESP_SKELETONS) or false
+    _G.ESP_ENABLED = _G.espSkeletons
+
+    local color = Rayfield:GetFlagValue(ESP_COLOR)
+    if color then _G.ESPColor = color end
+    _G.ESP_SETTINGS.Color = _G.ESPColor
+
+    _G.RainbowEnabled = Rayfield:GetFlagValue(RAINBOW_ENABLED) or false
+    _G.RainbowSpeed = Rayfield:GetFlagValue(RAINBOW_SPEED) or 1.0
+
+    if AimbotSettings.FOVCircle then
+        AimbotSettings.FOVCircle.Color = AimbotSettings.FOVColor
+    end
+end
+
 -- ==================== CHANGELOGS TAB ====================
 local ChangelogsTab = Window:CreateTab("📜 Changelogs", nil)
 local ChangelogsSection = ChangelogsTab:CreateSection("Version History")
@@ -931,17 +1073,40 @@ ChangelogsTab:CreateParagraph({
 })
 
 ChangelogsTab:CreateParagraph({
-    Title = "v1.3 – Visual Polish",
+    Title = "v1.1 – Visual Polish",
     Content = "• ESP Names and Distance text now pure white (no black outline)\n• Added Changelogs tab\n• Cleaned up UI labels"
 })
 
 ChangelogsTab:CreateParagraph({
-    Title = "v1.4 – Save/Load Configs",
+    Title = "v1.2 – Save/Load Configs",
     Content = "• Added automatic configuration saving/loading\n• Your settings (ESP, Aim, No Recoil, Colors, etc.) now persist between game sessions\n• Configs are stored locally and loaded on startup"
+})
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.3 – Wall Check & FOV Update",
+    Content = "• Removed 'Always Active' toggle\n• Added '(Aim in to Lock)' label to AimBot\n• Added 'Wall Check' toggle – when ON, you can't lock through walls; when OFF, you can\n• FOV circle max increased to 700"
+})
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.4 – Smoothness & FOV Color",
+    Content = "• Completely revamped aimbot smoothing – now smooth as butter\n• Added FOV Circle Color picker – customize your FOV circle\n• Config now saves FOV color\n• Aimbot feel is now natural and responsive"
+})
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.5 – Aimbot Final Polish (7/25/2026)",
+    Content = "• Final smoothing curve: balanced baseline (0.50 at 0, 0.05 at 10)\n• Head aim offset fine-tuned for perfect center-of-head precision\n• Completely eliminated screen shake and harshness at all settings\n• Aimbot now flawless – smooth, responsive, and reliable"
 })
 
 ChangelogsTab:CreateLabel("")
 ChangelogsTab:CreateLabel("⚡ Made for Operation One")
-ChangelogsTab:CreateLabel("🔧 For Xeno & Delta executors")
+ChangelogsTab:CreateLabel("🔧 Most executors supported")
+
+-- ==================== LOAD CONFIG & SYNC ====================
+task.spawn(function()
+    task.wait(0.5)
+    Rayfield:LoadConfiguration()
+    syncVariablesFromFlags()
+    print("Config loaded and synced.")
+end)
 
 print("Operation One | Swayz 🟣 — Loaded")

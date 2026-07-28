@@ -8,28 +8,112 @@ _G.ESP_ENABLED = false
 _G.RainbowEnabled = false
 _G.RainbowSpeed = 1.0
 
+-- ==================== DISCORD INVITE ====================
+local DISCORD_INVITE = "CYjZqhsdgz"
+local DISCORD_LINK = "https://discord.gg/" .. DISCORD_INVITE
+
+-- ==================== DETECT EXECUTOR ====================
+local function getExecutor()
+    local exec = "Unknown"
+    pcall(function()
+        if syn and syn.request then
+            exec = "Synapse X"
+        elseif getexecutorname then
+            exec = getexecutorname()
+        elseif isfile and readfile and writefile then
+            exec = "Script-Ware"
+        elseif queue_on_teleport then
+            exec = "Krnl"
+        elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
+            exec = "Delta"
+        end
+    end)
+    return exec
+end
+
+local EXECUTOR = getExecutor()
+local DETECTION_STATUS = "🟢 Undetected"
+local currentPlayer = game:GetService("Players").LocalPlayer.Name
+
+-- ==================== CREATE WINDOW ====================
 local Window = Rayfield:CreateWindow({
-   Name = "Operation One | Swayz 🟣",
-   Icon = 0,
-   LoadingTitle = "Operation One | Swayz 🟣",
-   LoadingSubtitle = "By Littlemail67",
-   ShowText = "Rayfield",
-   Theme = "Default",
-   ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "OperationOneSwayz",
-      FileName = "config",
-   },
+    Name = "Operation One | Swayz 🟣",
+    Icon = 0,
+    LoadingTitle = "Operation One | Swayz 🟣",
+    LoadingSubtitle = "By Littlemail67",
+    ShowText = "Rayfield",
+    Theme = "AmberGlow",
+    ToggleUIKeybind = "K",
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+    Size = UDim2.new(0, 600, 0, 550),
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "OperationOneSwayz",
+        FileName = "config",
+    },
 })
 
+-- ==================== DISCORD JOIN PROMPT ====================
+task.spawn(function()
+    task.wait(1)
+    Rayfield:Notify({
+        Title = "💬 Join Our Discord!",
+        Content = "Click Copy Invite to join: discord.gg/" .. DISCORD_INVITE,
+        Duration = 8,
+    })
+    
+    -- Show a popup button to copy the invite
+    local DiscordTab = Window:CreateTab("💬 Discord", nil)
+    DiscordTab:CreateLabel("🔗 Join our Discord server!")
+    DiscordTab:CreateLabel("Get updates, support, and more.")
+    DiscordTab:CreateLabel("")
+    DiscordTab:CreateLabel("📌 Invite Code: " .. DISCORD_INVITE)
+    DiscordTab:CreateLabel("")
+    DiscordTab:CreateButton({
+        Name = "📋 Copy Discord Invite",
+        Callback = function()
+            local copied = false
+            pcall(function()
+                if syn and syn.clipboard then
+                    syn.clipboard(DISCORD_LINK)
+                    copied = true
+                elseif setclipboard then
+                    setclipboard(DISCORD_LINK)
+                    copied = true
+                elseif toclipboard then
+                    toclipboard(DISCORD_LINK)
+                    copied = true
+                end
+            end)
+            if copied then
+                Rayfield:Notify({
+                    Title = "✅ Copied!",
+                    Content = "Discord invite copied to clipboard!",
+                    Duration = 3
+                })
+            else
+                Rayfield:Notify({
+                    Title = "⚠️ Couldn't Copy",
+                    Content = "Copy this link manually: " .. DISCORD_LINK,
+                    Duration = 4
+                })
+            end
+        end
+    })
+end)
+
 Rayfield:Notify({
-   Title = "Operation One | Swayz 🟣 Loaded!",
-   Content = "All systems ready",
-   Duration = 5,
+    Title = "Operation One | Swayz 🟣 Loaded!",
+    Content = "All systems ready",
+    Duration = 5,
 })
+
+-- ==================== STATUS TAB ====================
+local StatusTab = Window:CreateTab("✅ Status", nil)
+StatusTab:CreateLabel("📌 Welcome, " .. currentPlayer .. "!")
+StatusTab:CreateLabel("💻 Executor: " .. EXECUTOR)
+StatusTab:CreateLabel("🛡️ Status: " .. DETECTION_STATUS)
 
 -- ==================== NO RECOIL ====================
 local NoRecoilSettings = {
@@ -98,13 +182,12 @@ game:GetService("RunService"):BindToRenderStep("DynamicZeroRecoil", Enum.RenderP
     end
 end)
 
--- ==================== TABS ====================
-
--- 1. AIM TAB
+-- ==================== AIM TAB ====================
 local AimTab = Window:CreateTab("Aim💀", nil)
-local AimSection = AimTab:CreateSection("AimBot")
 
 -- ==================== AIMBOT ====================
+local AimSection = AimTab:CreateSection("AimBot")
+
 local UserInputService = game:GetService("UserInputService")
 local isMobile = UserInputService.TouchEnabled
 
@@ -271,7 +354,6 @@ local function aimbotLoop()
         local center = Camera.ViewportSize / 2
         local smoothness = AimbotSettings.Smoothness
         
-        -- 🔥 FINAL SMOOTHING: Balanced baseline – 0.50 at 0, 0.05 at 10
         local factor = 0.50 - (smoothness / 10) * 0.45
         factor = math.clamp(factor, 0.05, 0.55)
 
@@ -478,7 +560,7 @@ local function setupESP()
             Player = player,
             Box = newDrawing("Square", {Thickness = 1, Filled = false, Color = _G.ESP_SETTINGS.Color, Visible = false}),
             Tracer = newDrawing("Line", {Thickness = 1, Color = _G.ESP_SETTINGS.Color, Visible = false}),
-            Health = newDrawing("Line", {Thickness = 3, Visible = false}),
+            Health = newDrawing("Line", {Thickness = 5, Visible = false}),
             Name = newDrawing("Text", {Size = 13, Center = true, Outline = false, Color = Color3.fromRGB(255, 255, 255), Visible = false}),
             LastPosition = nil,
             StuckTime = 0
@@ -850,6 +932,8 @@ local ESPColorPicker = ESPTab:CreateColorPicker({
 
 -- ==================== CHAMS TAB ====================
 local ChamsTab = Window:CreateTab("Chams 🌈", nil)
+
+-- ==================== RAINBOW SECTION ====================
 local ChamsSection = ChamsTab:CreateSection("Rainbow Boxes")
 
 ChamsTab:CreateToggle({
@@ -942,7 +1026,7 @@ KeybindsTab:CreateLabel("📋 Discord")
 KeybindsTab:CreateButton({
     Name = "📋 Copy Discord Invite",
     Callback = function()
-        local link = "https://discord.gg/3Xg9enfae"
+        local link = DISCORD_LINK
         local copied = false
         pcall(function()
             if syn and syn.clipboard then
@@ -958,15 +1042,15 @@ KeybindsTab:CreateButton({
         end)
         if copied then
             Rayfield:Notify({
-                Title = "Discord Invite",
-                Content = "Link copied to clipboard!",
+                Title = "✅ Copied!",
+                Content = "Discord invite copied to clipboard!",
                 Duration = 3
             })
         else
             Rayfield:Notify({
-                Title = "Discord Invite",
-                Content = "Couldn't copy. Here's the link: " .. link,
-                Duration = 5
+                Title = "⚠️ Couldn't Copy",
+                Content = "Copy this link manually: " .. link,
+                Duration = 4
             })
         end
     end
@@ -1083,18 +1167,18 @@ ChangelogsTab:CreateParagraph({
 })
 
 ChangelogsTab:CreateParagraph({
-    Title = "v1.3 – Wall Check & FOV Update",
-    Content = "• Removed 'Always Active' toggle\n• Added '(Aim in to Lock)' label to AimBot\n• Added 'Wall Check' toggle – when ON, you can't lock through walls; when OFF, you can\n• FOV circle max increased to 700"
-})
-
-ChangelogsTab:CreateParagraph({
-    Title = "v1.4 – Smoothness & FOV Color",
+    Title = "v1.3 – Smoothness & FOV Color",
     Content = "• Completely revamped aimbot smoothing – now smooth as butter\n• Added FOV Circle Color picker – customize your FOV circle\n• Config now saves FOV color\n• Aimbot feel is now natural and responsive"
 })
 
 ChangelogsTab:CreateParagraph({
-    Title = "v1.5 – Aimbot Final Polish (7/25/2026)",
+    Title = "v1.4 – Aimbot Final Polish",
     Content = "• Final smoothing curve: balanced baseline (0.50 at 0, 0.05 at 10)\n• Head aim offset fine-tuned for perfect center-of-head precision\n• Completely eliminated screen shake and harshness at all settings\n• Aimbot now flawless – smooth, responsive, and reliable"
+})
+
+ChangelogsTab:CreateParagraph({
+    Title = "v1.5 – AmberGlow Theme & Healthbar Thickness",
+    Content = "• Default theme set to AmberGlow\n• Healthbar thickness increased to 5 for better visibility\n• Discord invite updated to: CYjZqhsdgz"
 })
 
 ChangelogsTab:CreateLabel("")
